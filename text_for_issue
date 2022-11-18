@@ -1,0 +1,9 @@
+I have been struggling with this issue for a while:
+calc_indicators() doesn't seem to work for polygons that overlap between two different resource rasters.
+When I compute treecover on an honeycomb, the hexagons that are located at the junction between two
+GFC rasters get NA values.
+This can be negligible when I have millions of hexagons, but it becomes a big problem when I want to 
+calculate indicators on large polygons, for instance a country. For instance for Madagascar, the mainland
+invariably gets NA values.
+I think I found a solution: cut the polygons along the footprints of the resource tiles before computing the
+indicators. See the example below.
