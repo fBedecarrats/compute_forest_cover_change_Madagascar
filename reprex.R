@@ -1,3 +1,4 @@
+ 
 # Install latest version of mapme.biodiversity
 remotes::install_github("mapme-initiative/mapme.biodiversity",
                         upgrade = "always")
@@ -40,18 +41,38 @@ mada_poly  <- calc_indicators(x = mada_poly,
 footprint_treecover_tiles <- st_read(attr(mada_poly, "resources")$gfw_treecover) 
 footprint_lossyear_tiles <- st_read(attr(mada_poly, "resources")$gfw_lossyear)
 
-mada_poly2  <- mada_poly %>% 
+# Bounding box around my polygon
+bbox_mada = st_as_sf(st_as_sfc(st_bbox(contour_mada)))
+
+# squares of 5km2
+area_cells <- 5 * (1e+6)
+size_cells <- 2 * sqrt(area_cells / ((3 * sqrt(3) / 2))) * sqrt(3) / 2
+grid <- st_make_grid(x = bbox_mada,
+                     cellsize = 0.3,
+                     square = TRUE)
+
+tm_shape(contour_mada) + 
+  tm_polygons() +
+  tm_shape(grid) +
+  tm_borders()
+
+sf_use_s2(TRUE)
+mada_poly2  <- contour_mada %>% 
+  st_cast("POLYGON") %>%
   st_intersection(footprint_treecover_tiles) %>%
+  st_intersection(grid) %>%
+  st_make_valid() %>%
+  filter(st_geometry_type(.) %in% c("POLYGON", "MULTIPOLYGON")) %>%
   # Have to re-cast back and forth because st_intersection() created 
   # multipolygons among polygons
   st_cast("MULTIPOLYGON") %>%
   st_cast("POLYGON")
-  
+
 
 mada_poly2 <- init_portfolio(mada_poly2,
                             years = 2000:2020,
-                            outdir  = "out_Mada",
-                            cores = 18,
+                            outdir  = "out_Mada2",
+                            cores = 24,
                             add_resources = TRUE)
 
 mada_poly2  <- get_resources(x = mada_poly2, 
@@ -60,6 +81,7 @@ mada_poly2  <- get_resources(x = mada_poly2,
 mada_poly2  <- calc_indicators(x = mada_poly2,
                               indicators = "treecover_area", 
                               min_cover = 10, min_size = 1)
+
 
 
 mada_global <- mada_poly2 %>%
