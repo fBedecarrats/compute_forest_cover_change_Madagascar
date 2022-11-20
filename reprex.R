@@ -28,9 +28,9 @@ mada_poly <- init_portfolio(mada_poly ,
 mada_poly  <- get_resources(x = mada_poly , 
                             resources = c("gfw_treecover", "gfw_lossyear"))
 
-mada_poly  <- calc_indicators(x = mada_poly,
-                              indicators = "treecover_area", 
-                              min_cover = 10, min_size = 1)
+# mada_poly  <- calc_indicators(x = mada_poly,
+#                               indicators = "treecover_area", 
+#                               min_cover = 10, min_size = 1)
 
 # PROBLEM: The Madagascar mainland gets NA values for treecover
 
@@ -51,12 +51,7 @@ grid <- st_make_grid(x = bbox_mada,
                      cellsize = 0.3,
                      square = TRUE)
 
-tm_shape(contour_mada) + 
-  tm_polygons() +
-  tm_shape(grid) +
-  tm_borders()
 
-sf_use_s2(TRUE)
 mada_poly2  <- contour_mada %>% 
   st_cast("POLYGON") %>%
   st_intersection(footprint_treecover_tiles) %>%
@@ -82,6 +77,8 @@ mada_poly2  <- calc_indicators(x = mada_poly2,
                               indicators = "treecover_area", 
                               min_cover = 10, min_size = 1)
 
+dir.create("data")
+write_rds(mada_poly2, "data/mada_poly2.rds")
 
 
 mada_global <- mada_poly2 %>%
