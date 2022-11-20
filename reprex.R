@@ -1,6 +1,6 @@
  
 # Install latest version of mapme.biodiversity
-remotes::install_github("mapme-initiative/mapme.biodiversity",
+remotes::install_github("fBedecarrats/mapme.biodiversity",
                         upgrade = "always")
 # Installing needed packages
 required_libs <- c("tidyverse", "readxl", "writexl", "sf", "geodata",
@@ -43,10 +43,6 @@ footprint_lossyear_tiles <- st_read(attr(mada_poly, "resources")$gfw_lossyear)
 
 # Bounding box around my polygon
 bbox_mada = st_as_sf(st_as_sfc(st_bbox(contour_mada)))
-
-# squares of 5km2
-area_cells <- 5 * (1e+6)
-size_cells <- 2 * sqrt(area_cells / ((3 * sqrt(3) / 2))) * sqrt(3) / 2
 grid <- st_make_grid(x = bbox_mada,
                      cellsize = 0.3,
                      square = TRUE)
@@ -92,5 +88,5 @@ mada_global <- mada_poly2 %>%
   summarise(across(starts_with("treecover"), sum, na.rm = TRUE))
 
 library(writexl)
-write_xlsx(Madagascar = mada_global,
+write_xlsx(list(Madagascar = mada_global),
            path = "couvert_forestier_mada.xlsx")

@@ -1,0 +1,418 @@
+---
+title: "Annual forest cover variation in Madagascar in protected areas and at national level (2000-2021)"
+author: "Florent Bédécarrats"
+format:
+  html:
+    code-fold: true
+    toc: true
+    toc-location: left
+    output-file: index.html
+    output-dir: docs
+editor: visual
+execute:
+  warning: false
+  error: false
+editor_options: 
+  chunk_output_type: console
+---
+
+# Introduction
+
+When an assignment results more difficult than expected, it is useful to codify, document and share the solution found. Here we wanted to to compute the forest cover and annual forest cover loss of all terrestrial protected areas in Madagascar and also at national level. The output data is available in the Results section, but we recommend reading the documentation surrounding it for an appropriate interpretation of the data. This works is complementary to a broader and more indepth material developed for research and training purpose and available online.
+
+# Data
+
+## WDPA database on protected areas
+
+Madagascar protected areas referenced in the IUCN [protected area database (WDPA)](https://www.protectedplanet.net/en/thematic-areas/wdpa?tab=WDPA). It includes the spatial boundaries and information about the protected areas (see [the variable meaning and codification here](https://developers.google.com/earth-engine/datasets/catalog/WCMC_WDPA_current_points#table-schema)). We display this information below.
+
+```{r}
+# Load the R libraries needed for the analysis ---------------------------------------
+# Install latest version of mapme.biodiversity
+remotes::install_github("fBedecarrats/mapme.biodiversity",
+                        upgrade = "always")
+# Load required packages
+library(mapme.biodiversity) # To get spatial data and compute indicators
+library(tidyverse) # To easily handle data
+library(lubridate) # To handle spatial data
+library(writexl) # To export the result in exel files
+library(sf) # To manage spatial data
+library(geodata) # To get national boundaries
+library(wdpar) # To get IUCN data on protected areas (WDPA)
+library(tmap) # To display maps
+library(gt) # To make nice tables
+library(cowplot) # for combined graphs
+
+# Get and display the WPDA data -----------------------------------------------------
+
+# Get national boundaries
+contour_mada <- gadm(country = "Madagascar", resolution = 1, level = 0,
+                     path = "data/GADM") %>%
+  st_as_sf()
+# Get WDPA data  
+WDPA_Mada <- wdpa_fetch("Madagascar", wait = TRUE, # using the wdpar package
+                        download_dir = "data/WDPA") # store a copy locally
+# Display the interactive map
+tmap_mode("view") # for interactive mode
+tm_shape(contour_mada) +
+  tm_borders() +
+  tm_shape(WDPA_Mada) +  
+  tm_polygons(col = "IUCN_CAT", alpha = 0.6, title = "IUCN category",
+              id = "NAME",
+              popup.vars = c("Type" = "DESIG",
+                             "UICN category" = "IUCN_CAT",
+                             "Declared area (ha)" = "REP_AREA",
+                             "Year of the status" = "STATUS_YR")) +
+  tmap_options(check.and.fix = TRUE)
+```
+
+## Limitations of WDPA database
+
+We reviewed this data and compared it with another database, created for the association Vahatra by Goodman et al. in the framework of monographies they established for 98 terrestrial protected areas in Madagascar . From this examination and comparison, we note that WDPA database presents serious limitations for Madagascar.
+
+First, we can see that the information on protected areas creation dates, status and managing organization is often missing in WDPA.
+
+```{r}
+WDPA_Mada %>%
+  st_drop_geometry() %>%
+  summarise(`Total numver of protected areas` = n(),
+            `Missing IUCN category` = sum(IUCN_CAT == "Not Reported"),
+            `Missing creation year` = sum(STATUS_YR == 0),
+            `Missing managing organization` = sum(MANG_AUTH == "Not Reported")) %>%
+  pivot_longer(cols = everything(),
+               names_to = " ",
+               values_to = "Nombre d'aires") %>%
+  gt() %>%
+  tab_header("Missing values in WDPA data for Madagascar") %>%
+  tab_source_note("Source : WDPA (November 2022)")
+```
+
+Second, an ongoing revision process by de Montalembert reveals the information on status and type in WDPA is also often inaccurate in WDPA.
+
+Third, the spatial perimeters of protected areas is sometimes inaccurate, as demonstrates the comparison below with the (apparently more precise) Vahatra data:
+
+```{r}
+#| fig-height: 10
+# Get data from Vahatra (copied on github to exemplify an issue)
+download.file("https://github.com/mapme-initiative/mapme.biodiversity/files/9746104/AP_Vahatra_shp.zip",destfile = "data/AP_Vahatra_shp.zip")
+unzip("data/AP_Vahatra_shp.zip",exdir = "data/AP_Vahatra_shp")
+PAs_Vahatra <- read_sf("data/AP_Vahatra_shp/AP_Vahatra.shp") %>%
+  rename(cat_iucn = cat__cn, creation = creatin, date_creation = dt_crtn,
+         hectares = hectars, full_name = full_nm) %>%
+  st_make_valid() %>% # some geometries are invalid
+  mutate(an_creation = year(date_creation))
+# There is no CRS in the data. We assume WGS 84 is correct
+st_crs(PAs_Vahatra)<-"EPSG:4326"
+
+# On harmonise les noms qui sont parfois notés différemment entre les sources
+PAs_Vahatra <- PAs_Vahatra %>%
+  mutate(nom_wdpa = case_when(
+    nom == "Corridor Forestier Bongolava" ~ "Corridor forestier Bongolava",
+    nom == "Ranobe PK32" ~ "Ranobe PK 32",
+    str_detect(nom, "Ambositra-Vondrozo") ~ "Corridor Forestier Ambositra Vondrozo",
+    nom == "Réserve deTampolo" ~ "Réserve de Tampolo",
+    nom == "Bombetoka Beloboka" ~ "Bombetoka Belemboka",
+    nom == "Ampananganandehibe-Behasina" ~ "Ampanganandehibe-Behasina",
+    nom == "Forêt Sacrée Alandraza Analavelo" ~ "Analavelona", # vérfié sur carte : les mêmes
+    nom == "Réserve speciale Pointe à Larrée" ~ "Réserve spéciale Pointe à Larrée", 
+    nom == "Vohidava-Betsimalaho" ~ "Vohidava Betsimalao", 
+    nom == "Anjanaharibe Sud" ~ "Anjanaharibe_sud",
+    nom == "Iles Radama/Sahamalaza" ~ "Sahamalaza Iles Radama",
+    nom == "Kalambatritra" ~ "Kalambatrika",
+    nom == "Mananara-Nord" ~ "Mananara Nord",
+    nom == "Kirindy - Mitea" ~ "Kirindy Mite",
+    nom == "Midongy du Sud" ~ "Befotaka Midongy", # Vérifié sur la carte
+    nom == "Montagne d'Ambre/Forêt d'Ambre" ~ "Montagne d'Ambre",
+    nom == "Tsimanampesotsa" ~ "Tsimanampesotse",
+    nom == "Pic d'Ivohibe" ~ "Ivohibe",
+    nom == "Forêt Naturelle de Petriky" ~ "Forêt Naturel de Petriky",
+    nom == "Tsingy de Namoroka" ~ "Namoroka",
+    nom == "Réserve de Ressources Naturelle Mahimborondro" ~ "Mahimborondro",
+    str_detect(nom, "Complexe Tsimembo Manambolomaty") ~ "Complexe Tsimembo Manambolomaty",
+    nom == "Mandrozo" ~ "Zone Humide de Mandrozo",
+    nom == "Paysage Harmonieux Protégés Bemanevika" ~ "Complexe des Zones Humides de Bemanevika",
+    nom == "Nord Ifotaky" ~ "INord fotaky",
+    TRUE ~ nom)) %>%
+  arrange(nom_wdpa) %>%
+  mutate(rownum = row_number())
+
+# On ne garde que les aires de WDPA qui apparaissent dans Vahatra
+WDPA_commun <- WDPA_Mada %>%
+  filter(NAME %in% PAs_Vahatra$nom_wdpa) %>%
+  filter(!(NAME == "Analalava" & IUCN_CAT == "Not Reported")) %>%
+  filter(!(NAME == "Site Bioculturel d'Antrema" & IUCN_CAT == "Not Reported")) %>%
+  filter(DESIG != "UNESCO-MAB Biosphere Reserve") %>%
+  arrange(NAME)  %>%
+  mutate(rownum = row_number())
+       
+# Cette fonction calcule la part d'un polygone incluse dans un 
+# autre polygone et retourne un ratio entre 0 et 1
+ratio_inclus <- function(x, y) {
+  inclus <- st_intersection(x, y)
+  ratio <- st_area(inclus) / st_area(x)
+  return(ratio)
+}
+
+# On calcule la part des polygones Vahatra incluse dans les polgones WDPA 
+V_in_W <- map2_dbl(WDPA_commun$geometry, PAs_Vahatra$geometry, ratio_inclus)
+# Puis l'inverse
+W_in_V <- map2_dbl(PAs_Vahatra$geometry, WDPA_commun$geometry, ratio_inclus)
+# On fait un facteur des deux
+recoupement_mutuel <- V_in_W * W_in_V
+# Qu'on ramène dans les jeux de données d'origine
+WDPA_commun2 <- bind_cols(WDPA_commun, V_in_W = V_in_W, W_in_V = W_in_V,
+                         recoupement_mutuel = recoupement_mutuel) %>%
+  arrange(recoupement_mutuel, rownum)
+PAs_Vahatra2 <- bind_cols(PAs_Vahatra, V_in_W = V_in_W, W_in_V = W_in_V,
+                        recoupement_mutuel = recoupement_mutuel) %>%
+  arrange(recoupement_mutuel, rownum)
+
+# On prend maintenant les 5 les plus éloignés et on les visualise
+min_recoup <- WDPA_commun2 %>%
+  filter(row_number() <= 10) %>%
+  select(nom_wdpa = NAME, rownum) %>%
+  mutate(source = "WDPA") %>%
+  bind_rows(select(filter(PAs_Vahatra2, rownum %in% .$rownum), nom_wdpa, rownum)) %>%
+  mutate(source = ifelse(is.na(source), "Vahatra", source))
+tmap_mode("plot")
+min_recoup %>%
+  tm_shape() +
+  tm_polygons() +
+  tm_facets(by = c("nom_wdpa", "source")) +
+  tm_layout(panel.label.size=3)
+```
+
+Fourth, several protected areas referenced in WDPA overlap one with another, either completely (protected areas within protected areas) or partially (shared territories). In order to gauge the extent of these overlaps, we first calculate the sum of the surface areas of the protected areas recorded in the WDPA database, and then compared it to their total footprint, without duplication: 21% of WDPA area is duplicated (see here for more details) . This means that indicators such as total area, forest cover or forest cover loss related to the WDPA polygons cannot be summed or averaged (or we would be counting twice or thrice the same areas).
+
+## Data from the Vahatra association
+
+From this, we would recommend to use the Vahatra data instead of the WDPA data, here is a description.
+
+```{r}
+tm_shape(contour_mada) +
+  tm_borders() +
+  tm_shape(PAs_Vahatra) + 
+  tm_polygons(col = "cat_iucn", alpha = 0.6, title = "Catégorie IUCN",
+              id = "nom",
+              popup.vars = c("Creation" = "creation",
+                             "Creation year" = "an_creation",
+                             "Area (ha)" = "hectares",
+                             "Full name" = "full_name",
+                             "Manager" = "gest_1")) +
+  tmap_options(check.and.fix = TRUE)
+```
+
+# Methods
+
+```{r}
+# Install latest version of mapme.biodiversity
+remotes::install_github("fBedecarrats/mapme.biodiversity",
+                        upgrade = "always", force = TRUE)
+
+WDPA_poly  <- WDPA_Mada %>%
+  filter(st_geometry_type(.) == "MULTIPOLYGON") %>% 
+  st_cast("POLYGON")
+
+WDPA_poly <- init_portfolio(WDPA_poly,
+                           years = 2000:2021,
+                           outdir  = "mapme_data1",
+                           cores = 24,
+                           add_resources = TRUE)
+
+# Get GFW data
+WDPA_poly  <- get_resources(x = WDPA_poly , 
+                         resources = c("gfw_treecover", "gfw_lossyear"))
+
+# Note: attr(mada_poly, "resources")$gfw_lossyear indicates the gpkg associated
+# in this case: "out_Mada/gfw_lossyear/tileindex_gfw_lossyear.gpkg"
+# So we read it to 'cut' the polygons from its borders
+footprint_treecover_tiles <- st_read(attr(mada_poly, "resources")$gfw_treecover) 
+footprint_lossyear_tiles <- st_read(attr(mada_poly, "resources")$gfw_lossyear)
+
+# Compute WDPA ---------------------------------------------------------------------
+
+WDPA_poly <- WDPA_poly %>%
+  st_intersection(footprint_treecover_tiles) %>%
+  st_make_valid() %>%
+  filter(st_geometry_type(.) %in% c("POLYGON", "MULTIPOLYGON")) %>%
+  # Have to re-cast back and forth because st_intersection() created 
+  # multipolygons among polygons
+  st_cast("MULTIPOLYGON") %>%
+  st_cast("POLYGON")
+
+
+WDPA_poly <- init_portfolio(WDPA_poly,
+                           years = 2000:2021,
+                           outdir  = "mapme_data1",
+                           cores = 24,
+                           add_resources = TRUE)
+
+WDPA_poly  <- get_resources(x = WDPA_poly, 
+                            resources = c("gfw_treecover", "gfw_lossyear"))
+
+WDPA_poly  <- calc_indicators(x = WDPA_poly,
+                              indicators = "treecover_area", 
+                              min_cover = 10, min_size = 1)
+
+WDPA_result <- WDPA_poly %>%
+  select(-location) %>%
+  unnest(treecover_area) %>%
+  # filter(!is.na(years)) %>%
+  pivot_wider(names_from = "years", values_from = "treecover", 
+              names_prefix = "treecover_") %>%
+  st_drop_geometry() %>%
+  select(-assetid) %>%
+  group_by(across(!starts_with("treecover"))) %>%
+  summarise(across(starts_with("treecover"), sum, na.rm = TRUE))
+
+# Compute PAs_Vahatra -------------------------------------------------------
+
+
+PAs_Vahatra_poly <- PAs_Vahatra %>%
+  st_set_crs("EPSG:4326") %>%
+  st_make_valid() %>%
+  st_intersection(footprint_treecover_tiles) %>%
+  filter(st_geometry_type(.) %in% c("POLYGON", "MULTIPOLYGON")) %>%
+  # Have to re-cast back and forth because st_intersection() created 
+  # multipolygons among polygons
+  st_cast("MULTIPOLYGON") %>%
+  st_cast("POLYGON")
+
+
+PAs_Vahatra_poly <- init_portfolio(PAs_Vahatra_poly,
+                           years = 2000:2021,
+                           outdir  = "mapme_data1",
+                           cores = 24,
+                           add_resources = TRUE)
+
+PAs_Vahatra_poly  <- get_resources(x = PAs_Vahatra_poly, 
+                            resources = c("gfw_treecover", "gfw_lossyear"))
+
+PAs_Vahatra_poly  <- calc_indicators(x = PAs_Vahatra_poly,
+                              indicators = "treecover_area", 
+                              min_cover = 10, min_size = 1)
+
+PAs_Vahatra_result <- PAs_Vahatra_poly %>%
+  select(-location) %>%
+  unnest(treecover_area) %>%
+  # filter(!is.na(years)) %>%
+  pivot_wider(names_from = "years", values_from = "treecover", 
+              names_prefix = "treecover_") %>%
+  st_drop_geometry() %>%
+  select(-assetid) %>%
+  group_by(across(!starts_with("treecover"))) %>%
+  summarise(across(starts_with("treecover"), sum, na.rm = TRUE))
+
+
+
+
+# National ------------------------------------------------------------------
+
+# Bounding box around my polygon
+bbox_mada = st_as_sf(st_as_sfc(st_bbox(contour_mada)))
+grid <- st_make_grid(x = bbox_mada,
+                     cellsize = 0.3,
+                     square = TRUE)
+
+mada_poly  <- contour_mada %>% 
+  st_cast("POLYGON") %>%
+  st_intersection(footprint_treecover_tiles) %>%
+  st_intersection(grid) %>%
+  st_make_valid() %>%
+  filter(st_geometry_type(.) %in% c("POLYGON", "MULTIPOLYGON")) %>%
+  # Have to re-cast back and forth because st_intersection() created 
+  # multipolygons among polygons
+  st_cast("MULTIPOLYGON") %>%
+  st_cast("POLYGON")
+
+
+mada_poly <- init_portfolio(mada_poly,
+                            years = 2000:2020,
+                            outdir  = "mapme_data1",
+                            cores = 24,
+                            add_resources = TRUE)
+
+mada_poly  <- get_resources(x = mada_poly, 
+                            resources = c("gfw_treecover", "gfw_lossyear"))
+
+mada_poly  <- calc_indicators(x = mada_poly,
+                              indicators = "treecover_area", 
+                              min_cover = 10, min_size = 1)
+
+mada_all <- mada_poly %>%
+  select(-location) %>%
+  unnest(treecover_area) %>%
+  # filter(!is.na(years)) %>%
+  pivot_wider(names_from = "years", values_from = "treecover", 
+              names_prefix = "treecover_") %>%
+  st_drop_geometry() %>%
+  select(-assetid) %>%
+  group_by(across(!starts_with("treecover"))) %>%
+  summarise(across(starts_with("treecover"), sum, na.rm = TRUE))
+
+# Save the results -------------------------------------------------------
+
+save(mada_poly, WDPA_poly, PAs_Vahatra_poly, file = "outputs_GFC.rds")
+
+write_xlsx(list(Madagascar = mada_all, WDPA = WDPA_result, 
+                Vahatra = PAs_Vahatra_result),
+           path = "couvert_forestier_mada_pa.xlsx")
+
+
+```
+
+# Results
+
+```{r}
+#| fig-height: 12 
+# On ordonne les nom d'aires protégées dans l'ordre de leur séquence de création
+chrono_order_PAs <- PAs_Vahatra %>%
+  arrange(desc(date_creation), desc(nom)) %>%
+  pull(nom)
+# On transforme le champ "nom" de caractère, à une catégorisation ordonnée où
+# l'ordre correspond 
+PAs_Vahatra_map <- PAs_Vahatra %>%
+  mutate(nom = factor(nom, levels = chrono_order_PAs),
+         cat_taille = case_when(hectares > 300000 ~ 2,
+                                hectares > 150000 ~ 1.5,
+                                hectares >  50000 ~ 1,
+                                             TRUE ~ 0.5)) %>%
+  rename(`IUCN category` = cat_iucn)
+# On crée un graph pour les anciennetés
+graph_left <- PAs_Vahatra_map %>%
+  ggplot(aes(x = date_creation, xend = ymd("2022-10-01"), y = nom, yend = nom, 
+                   color = `IUCN category`)) +
+  geom_segment(size = 2) +
+  ggtitle("Date of creation") +
+  theme(axis.ticks.y = element_blank(),
+        legend.position = "none",
+        axis.title = element_blank(),
+        axis.text.x.bottom =  element_text(angle = 45, hjust = 1),
+        axis.text.x.top = element_text(angle = -45, hjust = 1)) + 
+  scale_x_date(sec.axis = dup_axis())
+graph_right <- PAs_Vahatra_map %>%
+  ggplot(aes(x = 0, xend = hectares/100, y = nom, yend = nom, 
+                   color = `IUCN category`)) +
+  geom_segment(size = 2) + 
+  ggtitle("Area (km2)") +
+  theme(axis.text.y = element_blank(),
+        axis.title = element_blank(),
+        axis.text.x.bottom =  element_text(angle = 45, hjust = 1),
+        axis.text.x.top = element_text(angle = -45, hjust = 0),
+        legend.position = "none") + 
+  scale_x_continuous(sec.axis = dup_axis())
+legende <- get_legend(graph_left  +
+                        guides(color = guide_legend(nrow = 1)) +
+                        theme(legend.position = "bottom"))
+# On colle les deux
+graphs <- plot_grid(graph_left, graph_right, rel_widths = c(2.2, 1),
+          nrow = 1)
+plot_grid(graphs, legende, ncol = 1,
+          rel_heights = c(1,.1))
+```
+
+Discussion
+
+```{r}
+
+```
