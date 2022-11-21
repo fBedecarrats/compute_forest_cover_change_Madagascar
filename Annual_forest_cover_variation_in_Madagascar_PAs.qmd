@@ -229,7 +229,7 @@ Note that, as reported below, we were not able to perform the computation with t
 
 # Methods
 
-The computation is performed using the mapme.biodiversity package [@mapme.biodiversity].
+The computation is performed using the mapme.biodiversity package [@mapme.biodiversity]. The data to be computed is too big for a personal computer. We used the[Onyxia instance for the French public statistical system](https://datalab.sspcloud.fr), a high performance processing infrastructure made available by INSEE datalab.
 
 Note that we faced difficulties:
 
