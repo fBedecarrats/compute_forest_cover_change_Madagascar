@@ -187,7 +187,9 @@ min_recoup <- WDPA_commun2 %>%
   mutate(source = "WDPA") %>%
   bind_rows(select(filter(PAs_Vahatra2, rownum %in% .$rownum), nom_wdpa, rownum)) %>%
   mutate(source = ifelse(is.na(source), "Vahatra", source)) %>%
-  arrange(nom_wdpa)
+  arrange(nom_wdpa) %>%
+  mutate(nom_wdpa = ifelse(nom_wdpa == "Complexe des Zones Humides de Bemanevika",
+                           "ZH de Bemanevika", nom_wdpa))
 tmap_mode("plot")
 min_recoup %>%
   tm_shape() +
