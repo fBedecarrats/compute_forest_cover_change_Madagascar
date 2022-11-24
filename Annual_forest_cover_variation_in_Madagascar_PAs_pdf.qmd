@@ -35,14 +35,15 @@ The output data is available in [Results section @sec-results], but we recommend
 
 ### WDPA database on protected areas
 
-Madagascar protected areas are referenced in the IUCN [protected area database](https://www.protectedplanet.net/en/thematic-areas/wdpa?tab=WDPA) [@unep-wcmcandiucn2022]s. It includes the spatial boundaries and information about the protected areas (see [the variable meaning and codification here](https://developers.google.com/earth-engine/datasets/catalog/WCMC_WDPA_current_points#table-schema)). We display this information below.
+Madagascar protected areas are referenced in the IUCN [protected area database](https://www.protectedplanet.net/en/thematic-areas/wdpa?tab=WDPA) [@unep-wcmcandiucn2022]s. It includes the spatial boundaries and information about the protected areas (see [the variable meaning and codification here](https://developers.google.com/earth-engine/datasets/catalog/WCMC_WDPA_current_points#table-schema)). We display this information in the Figure 1.
 
 ```{r}
 #| fig-height: 8
+#| fig-subcap: "Protected area in Madagascar (GADM)"
 # Load the R libraries needed for the analysis ---------------------------------------
 # Install latest version of mapme.biodiversity
-remotes::install_github("fBedecarrats/mapme.biodiversity",
-                        upgrade = "always")
+# remotes::install_github("fBedecarrats/mapme.biodiversity",
+#                         upgrade = "always")
 # Load required packages
 library(mapme.biodiversity) # To get spatial data and compute indicators
 library(tidyverse) # To easily handle data
@@ -62,8 +63,12 @@ contour_mada <- gadm(country = "Madagascar", resolution = 1, level = 0,
                      path = "data/GADM") %>%
   st_as_sf()
 # Get WDPA data  
-WDPA_Mada <- wdpa_fetch("Madagascar", wait = TRUE, # using the wdpar package
-                        download_dir = "data/WDPA") # store a copy locally
+if (file.exists("data/WDPA/WDPA_Nov2022_MDG-shapefile.zip")) {
+   WDPA_Mada <- wdpa_read("data/WDPA/WDPA_Nov2022_MDG-shapefile.zip")
+} else {
+  WDPA_Mada <- wdpa_fetch("Madagascar", wait = TRUE, # using the wdpar package
+                        download_dir = "data/WDPA") # store a copy
+}
 # Display the interactive map
 tmap_mode("plot") # for interactive mode
 tm_shape(contour_mada) +
@@ -72,7 +77,7 @@ tm_shape(contour_mada) +
   tm_polygons(col = "IUCN_CAT", alpha = 0.6, title = "IUCN category",
               id = "NAME",
               popup.vars = c("Type" = "DESIG",
-                             "UICN category" = "IUCN_CAT",
+                             "Source: UICN category" = "IUCN_CAT",
                              "Declared area (ha)" = "REP_AREA",
                              "Year of the status" = "STATUS_YR")) +
   tmap_options(check.and.fix = TRUE) +
@@ -81,11 +86,7 @@ tm_shape(contour_mada) +
   # # NB : on note les positions en majuscules quand on veut coller aux marges
   tm_credits("GADM, UNEP-WCMC and IUCN (2022)", position = c("RIGHT", "BOTTOM"),
              size = 0.6) +
-  tm_layout(main.title = "Protected Areas of Madagascar",
-            # NB : position en minuscules pour laisser un espace avec la marge
-            main.title.position = c("center", "top"),
-            main.title.size = 1,
-            legend.position = c("left", "top"),
+  tm_layout(legend.position = c("left", "top"),
             legend.outside = TRUE)
 ```
 
@@ -93,7 +94,7 @@ tm_shape(contour_mada) +
 
 We reviewed this data and compared it with another database, created for the association Vahatra by Goodman and colleagues in the framework of monographs they established for 98 terrestrial protected areas in Madagascar [@goodman2018]. From this examination and comparison, we note that WDPA database presents serious limitations for Madagascar.
 
-**First limitation: missing data**. We can see that the information on protected areas creation dates, status and managing organization is often missing in WDPA.
+**First limitation: missing data**. We can see that the information on protected areas creation dates, status and managing organization is often missing in WDPA, as shown in Table 1.
 
 ```{r}
 WDPA_Mada %>%
@@ -106,17 +107,17 @@ WDPA_Mada %>%
                names_to = " ",
                values_to = "Number of protected areas") %>%
   gt() %>%
-  tab_header("Missing values in WDPA data for Madagascar") %>%
+  tab_header("Table 1: Missing values in WDPA data for Madagascar") %>%
   tab_source_note("Source : WDPA (November 2022)")
 ```
 
 **Second limitation: inaccurate data**. An ongoing revision process by de Montalembert reveals the information on status and type in WDPA is also often inaccurate in WDPA.
 
-**Third limitation: inaccurate geometries**. The spatial perimeters of protected areas are sometimes inaccurate, as demonstrates the comparison below with the (apparently more precise) Vahatra data. This means that statistics on forest cover or forest cover loss based on WDPA might includes areas that are in fact outside the protected areas perimeters.
+**Third limitation: inaccurate geometries**. The spatial perimeters of protected areas are sometimes inaccurate, as demonstrates the comparison below with the (apparently more precise) Vahatra data. This means that statistics on forest cover or forest cover loss based on WDPA might includes areas that are in fact outside the protected areas perimeters (cf. Figure 2).
 
 ```{r}
 #| fig-height: 15
- 
+#| fig-subcap: "Comparing perimeters of the same protected areas in WDPA and Vahatra databases"
 if (!dir.exists("data/AP_Vahatra_shp")) {
   # Get data from Vahatra (copied on github to exemplify an issue)
   download.file("https://github.com/mapme-initiative/mapme.biodiversity/files/9746104/AP_Vahatra_shp.zip",destfile = "data/AP_Vahatra_shp.zip")
@@ -216,10 +217,11 @@ min_recoup %>%
 
 ### Data from the Vahatra association
 
-From this, we would recommend to use the Vahatra data instead of the WDPA data (see visualization below). The data from Vahatra is available on [a dedicated portal](https://protectedareas.mg) that makes it accessible under a creative commons licence ([CC-BY](https://creativecommons.org/licenses/by/2.0/)).
+From this, we would recommend to use the Vahatra data instead of the WDPA data (see visualization below). The data from Vahatra is available on [a dedicated portal](https://protectedareas.mg) that makes it accessible under a creative commons licence ([CC-BY](https://creativecommons.org/licenses/by/2.0/)). This data is mapped in Figure 3.
 
 ```{r}
 #| fig-height: 8
+#| fig-subcap: "Protected areas in Madagascar (Vahatra)"
 tmap_mode("plot")
 tm_shape(contour_mada) +
   tm_borders() +
@@ -235,11 +237,7 @@ tm_shape(contour_mada) +
   tm_credits("Sources: GADM, Goodman et al. 2018", 
              position = c("RIGHT", "BOTTOM"),
              size = 0.6) +
-  tm_layout(main.title = "Protected areas of Madagascar",
-            # NB : position en minuscules pour laisser un espace avec la marge
-            main.title.position = c("center", "top"),
-            main.title.size = 1,
-            legend.position = c("left", "top"),
+  tm_layout(legend.position = c("left", "top"),
             legend.outside = TRUE)
 ```
 
@@ -263,9 +261,10 @@ Note that we faced difficulties:
 
 **Minimum forest patch size incompatible with FAO definition (unsolved):** The mapme.biodiversity packages is programmed to define as forest areas of a minimum size, and this minimum size must be a full number in hectares (so at least 1 hectare). However, thhe FAO definition above considers an area as forest with patches starting from 0.5 ha. We intented some workarounds that did not succeed, so we have to retain 1 ha as the minimal extent of forest patches for now. [An issue has been filled](https://github.com/mapme-initiative/mapme.biodiversity/issues/110) to be added to the mapme development backlog.
 
-**Handling polygons that overlap satellite image tiles (solved)**: The source data fetched by mapme.biodiversity come in tiles (3 in the case of Madagascar). The package cannot compute indicators for polygons that overlap the tile borders, which is the case for the national territory of Madagascar, as well as for 7 protected areas (see image below).
+**Handling polygons that overlap satellite image tiles (solved)**: The source data fetched by mapme.biodiversity come in tiles (3 in the case of Madagascar). The package cannot compute indicators for polygons that overlap the tile borders, which is the case for the national territory of Madagascar, as well as for 7 protected areas (see in Figure 4).
 
 ```{r}
+#| fig-subcap: "No results for polygons overlapping tile limits"
 # The following code sequence launches very heavy data processing. We want to avoid
 # re-launching it if not needed. So we start checking if the output of the data 
 # processing is available locally, and only if not we launch it.
@@ -314,11 +313,7 @@ tm_shape(footprint_treecover_tiles) +
   tm_add_legend(type = "fill", col = "green", alpha = 0.3, 
                 labels = "Protected areas") + 
   tm_add_legend(type = "line", col = "red", 
-                labels = "No result if overlap") + 
-  tm_layout(title = "No results for polygons overlapping tile limits",
-            title.position = c("center", "TOP"),
-            title.bg.color = "white",
-            title.bg.alpha = 0.6)
+                labels = "No result if overlap")
 ```
 
 A working solution consists in segmenting all overlapping polygons along the satellite image tile borders, compute the indicators for each segment, and then aggregate the indicators for the initial polygons. Further improvement of the mapme.biodiversity package could be to implement this procedure automatically.
@@ -473,11 +468,12 @@ As a synthesis of what precedes, the following caveats must be taken into accoun
 
 -   the data from Vahatra seems more reliable, although it does not contain some areas reported in WDPA.
 
-It is worth highlighting that the other information enclosed in the Vahatra data is also useful for the analysis, e.g., the representation below of protected areas date of creation, type and surface.
+It is worth highlighting that the other information enclosed in the Vahatra data is also useful for the analysis, e.g., the representation of protected areas date of creation, type and surface in Figure 5.
 
 ```{r}
 #| fig-height: 12 
-#| #| fig-width: 6 
+#| fig-width: 6 
+#| fig-subcap: "Creation date and extent of protected areas in Madagascar"
 # On ordonne les nom d'aires protégées dans l'ordre de leur séquence de création
 chrono_order_PAs <- PAs_Vahatra %>%
   arrange(desc(date_creation), desc(nom)) %>%

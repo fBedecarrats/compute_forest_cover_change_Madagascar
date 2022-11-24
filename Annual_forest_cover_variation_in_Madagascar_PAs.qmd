@@ -39,8 +39,8 @@ Madagascar protected areas are referenced in the IUCN [protected area database (
 #| fig-subcap: "Source : UNEP-WCMC and IUCN (2022)"
 # Load the R libraries needed for the analysis ---------------------------------------
 # Install latest version of mapme.biodiversity
-remotes::install_github("fBedecarrats/mapme.biodiversity",
-                        upgrade = "always")
+# remotes::install_github("fBedecarrats/mapme.biodiversity",
+#                         upgrade = "always")
 # Load required packages
 library(mapme.biodiversity) # To get spatial data and compute indicators
 library(tidyverse) # To easily handle data
@@ -60,8 +60,13 @@ contour_mada <- gadm(country = "Madagascar", resolution = 1, level = 0,
                      path = "data/GADM") %>%
   st_as_sf()
 # Get WDPA data  
-WDPA_Mada <- wdpa_fetch("Madagascar", wait = TRUE, # using the wdpar package
-                        download_dir = "data/WDPA") # store a copy locally
+if (file.exists("data/WDPA/WDPA_Nov2022_MDG-shapefile.zip")) {
+   WDPA_Mada <- wdpa_read("data/WDPA/WDPA_Nov2022_MDG-shapefile.zip")
+} else {
+  WDPA_Mada <- wdpa_fetch("Madagascar", wait = TRUE, # using the wdpar package
+                        download_dir = "data/WDPA") # store a copy
+}
+
 # Display the interactive map
 tmap_mode("view") # for interactive mode
 tm_shape(contour_mada) +
@@ -103,7 +108,7 @@ WDPA_Mada %>%
 
 ```{r}
 #| fig-height: 15
- 
+#| fig-subcap: "Comparing perimeters of the same protected areas in WDPA and Vahatra databases"
 if (!dir.exists("data/AP_Vahatra_shp")) {
   # Get data from Vahatra (copied on github to exemplify an issue)
   download.file("https://github.com/mapme-initiative/mapme.biodiversity/files/9746104/AP_Vahatra_shp.zip",destfile = "data/AP_Vahatra_shp.zip")
@@ -196,7 +201,7 @@ min_recoup %>%
   tm_shape() +
   tm_polygons() +
   tm_facets(by = c("nom_wdpa", "source")) +
-  tm_layout(panel.label.size=2.5)
+  tm_layout(panel.label.size=2.5) 
 ```
 
 **Fourth limitation: overlapping geometries**. Several protected areas referenced in WDPA overlap one with another, either completely (protected areas within protected areas) or partially (shared territories). In order to gauge the extent of these overlaps, we first calculate the sum of the surface areas of the protected areas recorded in the WDPA database, and then compared it to their total footprint, without duplication: 21% of WDPA area is duplicated ([see here for more details](https://fbedecarrats.github.io/conservation-deforestation-madagascar/01-aires_protegees.html#comparaison-des-donn%C3%A9es-vahatra-et-wdpa)). This means that indicators such as total area, forest cover or forest cover loss related to the WDPA polygons cannot be summed or averaged (or we would be counting twice or thrice the same areas).
