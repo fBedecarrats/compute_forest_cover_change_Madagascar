@@ -21,11 +21,11 @@ bibliography: references.bib
 
 # Introduction
 
-When an assignment results more difficult than expected, it is useful to codify, document and share the solution found. This is the philosophy that guided the foundation by KfW and partners of the [Mapme initiative](https://mapme-initiative.org/), the main tool that we use here: it was developed to enable policy-makers, funders, researcher and consultant that design, monitor or evaluate projects and policies to share their solutions, best practices in using spatial data for this purpose. To reciprocate with this virtuous approach, we summarize here some challenges that we encountered and that were not trivial to solve, as well as the workarounds we found. We hope it will help 1) the evaluator to correctly interpret the indicators provided, 2) future analysts to improve these calculations or reproduce them in other countries, and 3) the developers of the mapme package including me) to further improve this wonderful tool.
+When an assignment results more difficult than expected, it is useful to codify, document and share the solution found. This is the philosophy that guided the foundation by KfW and partners of the [Mapme initiative](https://mapme-initiative.org/), the main tool that we use here: it was developed to enable policy-makers, funders, researcher and consultant that design, monitor or evaluate projects and policies to share their tools and best practices to leverage spatial data for this purpose. To reciprocate with this virtuous approach, we summarize here some challenges that we encountered and that were not trivial to solve, as well as the workarounds we found. We hope it will help 1) the evaluator to correctly interpret the indicators provided, 2) future analysts to improve these calculations or reproduce them in other countries, and 3) the developers of the mapme package (including me) to further improve this wonderful tool.
 
-Our assignment was to calculate the forest cover and annual forest cover loss of all terrestrial protected areas in Madagascar and also at national level. These calculations are intended to serve as an input for [a KfW *ex post* evaluation](https://www.kfw-entwicklungsbank.de/International-financing/KfW-Development-Bank/Evaluations/Results/) of its support to conservation in this country.
+Our assignment was to calculate the forest cover and annual forest cover loss of all terrestrial protected areas in Madagascar and also at national level. These calculations are intended to serve as an input for [an](https://www.kfw-entwicklungsbank.de/International-financing/KfW-Development-Bank/Evaluations/Results/) [*ex post* evaluation](https://www.kfw-entwicklungsbank.de/International-financing/KfW-Development-Bank/Evaluations/Results/) of KfW support to conservation in this country.
 
-The output data is available in [Results section @sec-results], but we recommend reading the documentation surrounding it for an appropriate interpretation of the data. This works is complementary to a broader and [more in-depth material developed for research and training purpose and available online](https://fbedecarrats.github.io/conservation-deforestation-madagascar/).
+The output data is available in [Results section @sec-results], but we recommend reading the documentation surrounding it for an appropriate interpretation of the data. This work is complementary to a broader and [more in-depth material developed for research and training purposes and available online](https://fbedecarrats.github.io/conservation-deforestation-madagascar/).
 
 # Data
 
@@ -33,9 +33,10 @@ The output data is available in [Results section @sec-results], but we recommend
 
 ### WDPA database on protected areas
 
-Madagascar protected areas referenced in the IUCN [protected area database (WDPA)](https://www.protectedplanet.net/en/thematic-areas/wdpa?tab=WDPA). It includes the spatial boundaries and information about the protected areas (see [the variable meaning and codification here](https://developers.google.com/earth-engine/datasets/catalog/WCMC_WDPA_current_points#table-schema)). We display this information below.
+Madagascar protected areas are referenced in the IUCN [protected area database (WDPA)](https://www.protectedplanet.net/en/thematic-areas/wdpa?tab=WDPA). It includes the spatial boundaries and information about the protected areas (see [the variable meaning and codification here](https://developers.google.com/earth-engine/datasets/catalog/WCMC_WDPA_current_points#table-schema)). We display this information below.
 
 ```{r}
+#| fig-subcap: "Source : UNEP-WCMC and IUCN (2022)"
 # Load the R libraries needed for the analysis ---------------------------------------
 # Install latest version of mapme.biodiversity
 remotes::install_github("fBedecarrats/mapme.biodiversity",
@@ -96,9 +97,9 @@ WDPA_Mada %>%
   tab_source_note("Source : WDPA (November 2022)")
 ```
 
-**Second: inaccurate data**. An ongoing revision process by de Montalembert reveals the information on status and type in WDPA is also often inaccurate in WDPA.
+**Second limitation: inaccurate data**. An ongoing revision process by de Montalembert reveals the information on status and type in WDPA is also often inaccurate in WDPA.
 
-**Third: inaccurate geometries**. The spatial perimeters of protected areas are sometimes inaccurate, as demonstrates the comparison below with the (apparently more precise) Vahatra data:
+**Third limitation: inaccurate geometries**. The spatial perimeters of protected areas are sometimes inaccurate, as demonstrates the comparison below with the (apparently more precise) Vahatra data. This means that statistics on forest cover or forest cover loss based on WDPA might includes areas that are in fact outside the protected areas perimeters.
 
 ```{r}
 #| fig-height: 15
@@ -198,13 +199,14 @@ min_recoup %>%
   tm_layout(panel.label.size=2.5)
 ```
 
-**Fourth: overlapping geometries**. Several protected areas referenced in WDPA overlap one with another, either completely (protected areas within protected areas) or partially (shared territories). In order to gauge the extent of these overlaps, we first calculate the sum of the surface areas of the protected areas recorded in the WDPA database, and then compared it to their total footprint, without duplication: 21% of WDPA area is duplicated ([see here for more details](https://fbedecarrats.github.io/conservation-deforestation-madagascar/01-aires_protegees.html#comparaison-des-donn%C3%A9es-vahatra-et-wdpa)). This means that indicators such as total area, forest cover or forest cover loss related to the WDPA polygons cannot be summed or averaged (or we would be counting twice or thrice the same areas).
+**Fourth limitation: overlapping geometries**. Several protected areas referenced in WDPA overlap one with another, either completely (protected areas within protected areas) or partially (shared territories). In order to gauge the extent of these overlaps, we first calculate the sum of the surface areas of the protected areas recorded in the WDPA database, and then compared it to their total footprint, without duplication: 21% of WDPA area is duplicated ([see here for more details](https://fbedecarrats.github.io/conservation-deforestation-madagascar/01-aires_protegees.html#comparaison-des-donn%C3%A9es-vahatra-et-wdpa)). This means that indicators such as total area, forest cover or forest cover loss related to the WDPA polygons cannot be summed or averaged (or we would be counting twice or thrice the same areas).
 
 ### Data from the Vahatra association
 
-From this, we would recommend to use the Vahatra data instead of the WDPA data, here is a description. The data from Vahatra is available on [a dedicated portal](https://protectedareas.mg) that makes it accessible under a creative commons licence ([CC-BY](https://creativecommons.org/licenses/by/2.0/)).
+From this, we would recommend to use the Vahatra data instead of the WDPA data (see visualization below). The data from Vahatra is available on [a dedicated portal](https://protectedareas.mg) that makes it accessible under a creative commons licence ([CC-BY](https://creativecommons.org/licenses/by/2.0/)).
 
 ```{r}
+#| fig-subcap: "Source : Association Vahatra; Goodman et al. 2018."
 tmap_mode("view")
 tm_shape(contour_mada) +
   tm_borders() +
@@ -223,7 +225,7 @@ Hovever, some protected areas included in WDPA are missing in the Vahatra databa
 
 ## Forest cover data
 
-There are several definitions of forest [For a review of prominent definitions, see @chazdon2016a]. We retain the FAO [-@fao2000] as a reference:
+There are several definitions of forest [For a review of prominent definitions, see @chazdon2016a]. We retain the FAO definition [-@fao2000] as a reference:
 
 > Land with tree crown cover (or equivalent stocking level) of more than 10 % and area of more than 0.5 ha. The trees should be able to reach a minimum height of 5 m at maturity in situ. May consist either of closed forest formations where trees of various storeys and undergrowth cover a high proportion of the ground; or open forest formations with a continuous vegetation cover in which tree crown cover exceeds 10 %. Young natural stands and all plantations established for forestry purposes which have yet to reach a crown density of 10 % or tree height of 5 m are included under forest, as are areas normally forming part of the forest area which are temporarily unstocked as a result of human intervention or natural causes but which are expected to revert to forest.
 
@@ -231,13 +233,13 @@ Note that, as reported below, we were not able to perform the computation with t
 
 # Methods
 
-The computation is performed using the mapme.biodiversity package [@mapme.biodiversity]. The data to be computed is too big for a personal computer. We used the[Onyxia instance for the French public statistical system](https://datalab.sspcloud.fr), a high performance processing infrastructure made available by INSEE datalab.
+The computation is performed in R, using the mapme.biodiversity package [@mapme.biodiversity]. The data to be computed is too big for a personal computer. We used the [Onyxia instance for the French public statistical system](https://datalab.sspcloud.fr), a high performance processing infrastructure made available by INSEE datalab.
 
 Note that we faced difficulties:
 
 **Updating the source data (solved):** The data fetched by mapme.biodiversity includes the forest cover losses for years 2000 to 2020, but not for 2021. We copied the package and modified it to fetch the most recent data that includes forest cover loss from 2021. [This modification](https://github.com/fBedecarrats/mapme.biodiversity) will soon be submitted to the original mapme.biodiversity package.
 
-**Minimum forest patch size incompatible with FAO definition (unsolved):** The mapme.biodiversity packages is programmed to define as forest areas of a minimum size, and this minimum size must be a full number in hectares (so at least 1 hectare). However, thhe FAO definition considers an area as forest with patches starting from 0.5 ha. We intented some workarounds that did not work, so we have to retain 1 ha as the minimal extent of forest patches for now. [An issue has been filled](https://github.com/mapme-initiative/mapme.biodiversity/issues/110) to be added to the mapme development backlog.
+**Minimum forest patch size incompatible with FAO definition (unsolved):** The mapme.biodiversity packages is programmed to define as forest areas of a minimum size, and this minimum size must be a full number in hectares (so at least 1 hectare). However, thhe FAO definition above considers an area as forest with patches starting from 0.5 ha. We intented some workarounds that did not succeed, so we have to retain 1 ha as the minimal extent of forest patches for now. [An issue has been filled](https://github.com/mapme-initiative/mapme.biodiversity/issues/110) to be added to the mapme development backlog.
 
 **Handling polygons that overlap satellite image tiles (solved)**: The source data fetched by mapme.biodiversity come in tiles (3 in the case of Madagascar). The package cannot compute indicators for polygons that overlap the tile borders, which is the case for the national territory of Madagascar, as well as for 7 protected areas (see image below).
 
@@ -284,15 +286,17 @@ tm_shape(footprint_treecover_tiles) +
   tm_shape(footprint_treecover_tiles) +
   tm_borders(col = "red") +
   tm_add_legend(type = "fill", col = "papayawhip", 
-                labels = "Source satellite imagery tiles") + 
+                labels = "Satellite imagery tiles") + 
   tm_add_legend(type = "fill", col = "grey", 
                 labels = "National territory") + 
   tm_add_legend(type = "fill", col = "green", alpha = 0.3, 
                 labels = "Protected areas") + 
   tm_add_legend(type = "line", col = "red", 
-                labels = "No indicators if overlap") + 
-  tm_layout(title = "Impossible to calculate indicators for overlapping polygons",
-            title.position = c("LEFT", "TOP"))
+                labels = "No result if overlap") + 
+  tm_layout(title = "No results for polygons overlapping tile limits",
+            title.position = c("center", "TOP"),
+            title.bg.color = "white",
+            title.bg.alpha = 0.6)
 ```
 
 A working solution consists in segmenting all overlapping polygons along the satellite image tile borders, compute the indicators for each segment, and then aggregate the indicators for the initial polygons. Further improvement of the mapme.biodiversity package could be to implement this procedure automatically.
